@@ -1,3 +1,5 @@
+from tabulate import tabulate
+
 # Define global constants
 ITERATIONS = 1
 
@@ -76,8 +78,12 @@ class InfoSet():
                 infoSets[PARENTS[1]].strategy[ACTION_IDX]
             ]
             TOTAL = PROBS[0] + PROBS[1]
-            self.beliefs[0] = PROBS[0] / TOTAL
-            self.beliefs[1] = PROBS[1] / TOTAL
+            if TOTAL:
+                self.beliefs[0] = PROBS[0] / TOTAL
+                self.beliefs[1] = PROBS[1] / TOTAL
+            else:
+                self.beliefs[0] = .5
+                self.beliefs[1] = .5
 
     def setUtils(self) -> None:
         for ACTION in ACTIONS:
@@ -175,8 +181,27 @@ class InfoSet():
         self.gainsSum[1] += passGain
         global cumulativeGains
         cumulativeGains += betGain + passGain
-        
-    
+
+
+def debugPrintSets():
+    headers = [
+        "InfoSet","Strat:Bet", "Strat:Pass",
+        "---","Belief:H", "Belief:L", "---",
+        "Util:Bet","Util:Pass","ExpectedUtil",
+        "Likelihood"
+    ]
+    rows=[]
+    for infoSetStr in INFOSET_STRS:
+        infoSet = infoSets[infoSetStr]
+        row=[
+            infoSetStr, *infoSet.strategy,
+            infoSetStr, *infoSet.beliefs, infoSetStr,
+            *infoSet.utils, infoSet.utility,
+            infoSet.reach
+        ]
+        rows.append(row)
+    print(tabulate(rows, headers=headers,tablefmt="pretty",stralign="left"))
+
 
 def cfr():
     global infoSets
@@ -187,12 +212,17 @@ def cfr():
     # beliefs
     for infoSetStr in INFOSET_STRS:
         infoSets[infoSetStr].setBeliefs()
+        # print(f"{infoSetStr}: {infoSets[infoSetStr].beliefs}")
 
     # utilities of each action, but go BACKWARDS
-    for i in range(len(INFOSET_STRS) - 1, -1):
+    for i in range(len(INFOSET_STRS) - 1, -1, -1):
         infoSets[INFOSET_STRS[i]].setUtils()
+        # print(f"{INFOSET_STRS[i]}: {infoSets[INFOSET_STRS[i]].utils}")
         # also do reach probabilities while we're at it
-        infoSets[infoSetStr].setReachProbability()
+        infoSets[INFOSET_STRS[i]].setReachProbability()
+
+    # DEBUG PRINTING
+    debugPrintSets()
 
     # update gains
     global cumulativeGains
@@ -208,26 +238,37 @@ def initSets():
         infoSets[setStr] = InfoSet(setStr)
 
 
+def printResults():
+    headers = [
+        "InfoSet","Strat:Bet", "Strat:Pass",
+        "---","Belief:H", "Belief:L", "---",
+        "Util:Bet","Util:Pass","ExpectedUtil",
+        "Likelihood","---","TotGain:Bet", "TotGain:Pass"
+    ]
+    rows=[]
+    for infoSetStr in INFOSET_STRS:
+        infoSet = infoSets[infoSetStr]
+        row=[
+            infoSetStr, *infoSet.strategy,
+            infoSetStr, *infoSet.beliefs, infoSetStr,
+            *infoSet.utils, infoSet.utility,
+            infoSet.reach, infoSetStr, *infoSet.gainsSum
+        ]
+        rows.append(row)
+    print(tabulate(rows, headers=headers,tablefmt="pretty",stralign="left"))
+
+
 def main():
     # initialize info sets
     initSets()
 
     # begin actual computation
     for i in range(ITERATIONS):
-        print(cumulativeGains)
         cfr()
+        print(cumulativeGains)
 
     # print fine-tuned strategy
-
+    # printResults()
 
 if __name__ == "__main__":
     main()
-
-'''
-TODO
-1. if there's no parent, what are the beliefs?
-2. utility
-3. likelihood
-4. gains
-5. print results
-'''
