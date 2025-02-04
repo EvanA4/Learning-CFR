@@ -29,8 +29,8 @@ infoSets: dict[str, type['InfoSet']] = {}
 
 
 # Helper functions
-def getGameUtility(pocket1: str, pocket2: str, actionStr: str):
-    return (CARDS.index(pocket1) < CARDS.index(pocket2)) * (1 + actionStr[0] == "b")
+def getGameUtility(pocket1: str, pocket2: str, isBet: bool):
+    return (CARDS.index(pocket1) < CARDS.index(pocket2)) * (1 + isBet)
 
 
 class InfoSet():
@@ -84,10 +84,10 @@ class InfoSet():
             if actionStr in TERMINAL_ACTION_SET:
                 parents = self.getParents()
                 # add utility of both possible outcomes
-                self.utils[ACTIONS.index(ACTION)] = self.beliefs[0] * getGameUtility(self.setStr[0], parents[0][0], actionStr)
-                self.utils[ACTIONS.index(ACTION)] += self.beliefs[1] * getGameUtility(self.setStr[0], parents[1][0], actionStr)
+                self.utils[ACTIONS.index(ACTION)] = self.beliefs[0] * getGameUtility(self.setStr[0], parents[0][0], actionStr[-1] == "b")
+                self.utils[ACTIONS.index(ACTION)] += self.beliefs[1] * getGameUtility(self.setStr[0], parents[1][0], actionStr[-1] == "b")
             
-            # check if second player is playing bet
+            # check if second player is playing bet after player 1 played pass
             elif len(self.setStr) == 2:
                 self.utils[0] = 0
                 ctr = 0
@@ -98,17 +98,38 @@ class InfoSet():
                         self.utils[0] += self.beliefs[ctr] * (child.strategy[1] * getGameUtility(self.setStr[0], CARD, False))
                         ctr += 0
 
-            # calculate utilities for the root node :(
+            # calculate utilities for the root node's corresponding action :(
             else:
-                for i in range(2):
-                    self.utils[i] = 0
-                    ctr = 0
+                # if played bet, get expected utility of player 2's actions
+                if ACTION == "b":
+                    self.utils[0] = 0
                     for CARD in CARDS:
                         if CARD != self.setStr[0]:
                             child = infoSets[CARD + actionStr]
-    
-    def setUtility(self) -> None:
-        self.utility = self.strategy[0] * self.utils[0] + self.strategy[1] * self.utils[1]
+                            # player 2 could play either bet or pass
+                            self.utils[0] += .5 * (
+                                child.strategy[0] + getGameUtility(self.setStr[0], CARD, True) +
+                                child.strategy[1] + getGameUtility(self.setStr[0], CARD, False)
+                            )
+
+                else:
+                    # if player 1 plays pass...
+                    self.utils[1] = 0
+                    for CARD in CARDS:
+                        if CARD != self.setStr[0]:
+                            child = infoSets[CARD + actionStr]
+
+                            # if player 2 plays pass
+                            self.utils[0] += .5 * (
+                                child.strategy[0] + getGameUtility(self.setStr[0], CARD, False)
+                            )
+                            # if player 2 plays bet
+                            self.utils[0] += .5 * (
+                                child.strategy[0] + getGameUtility(self.setStr[0], CARD, False)
+                            )
+
+                
+        self.strategy[0] * self.utils[0] + self.strategy[1] * self.utils[1]
 
 
             
@@ -155,3 +176,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+TODO
+1. if there's no parent, what are the beliefs?
+2. utility
+3. likelihood
+4. gains
+5. print results
+'''
